@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Savi Beauty Studio</title>
+<meta name="description" content="Track customer visits, expenses, and monthly profit & loss for Savi Beauty Studio." />
+<meta name="theme-color" content="#1C1420" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <span class="brand-mark brand-mark--lg">S</span>
+    <h1 class="auth-title">Savi Beauty Studio</h1>
+    <p class="auth-sub">Sign in to sync your parlour data across devices.</p>
+
+    <form id="authForm" class="sheet-form">
+      <div class="field">
+        <label for="authEmail">Email</label>
+        <input id="authEmail" type="email" required autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" required autocomplete="current-password" minlength="6" />
+      </div>
+    </form>
+
+    <p id="authError" class="auth-error" hidden></p>
+
+    <button type="submit" form="authForm" class="btn btn-primary">Sign in</button>
+    <button type="button" id="authCreateBtn" class="btn btn-secondary">Create account</button>
+    <button type="button" id="authForgotBtn" class="auth-link">Forgot password?</button>
+  </div>
+</div>
+
+<div class="app" id="appRoot" hidden>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">S</span>
+      <div class="brand-text">
+        <span class="brand-name">Savi</span>
+        <span class="brand-sub">Beauty Studio</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="installBtn" class="install-btn" hidden>Install app</button>
+      <button id="logoutBtn" class="logout-btn" title="Sign out">⏻</button>
+    </div>
+  </header>
+
+  <main id="views">
+
+    <!-- DASHBOARD -->
+    <section class="view" id="view-dashboard">
+      <div class="month-switch">
+        <button id="prevMonth" class="month-arrow" aria-label="Previous month">‹</button>
+        <span id="monthLabel" class="month-label"></span>
+        <button id="nextMonth" class="month-arrow" aria-label="Next month">›</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-label">Revenue</span>
+          <span id="statRevenue" class="stat-value">Rs. 0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Expenses</span>
+          <span id="statExpenses" class="stat-value">Rs. 0</span>
+        </div>
+        <div class="stat-card stat-card--wide" id="statPLCard">
+          <span class="stat-label">Profit / Loss</span>
+          <span id="statPL" class="stat-value stat-value--big">Rs. 0</span>
+        </div>
+      </div>
+
+      <h2 class="section-title">Recent activity</h2>
+      <ul id="recentList" class="entry-list"></ul>
+      <p id="recentEmpty" class="empty-hint" hidden>Nothing logged for this month yet. Add a visit or an expense to see it here.</p>
+    </section>
+
+    <!-- CUSTOMERS -->
+    <section class="view" id="view-customers" hidden>
+      <div class="view-header">
+        <input id="customerSearch" class="search-input" type="search" placeholder="Search by name or service" />
+      </div>
+      <ul id="customerList" class="entry-list"></ul>
+      <p id="customerEmpty" class="empty-hint" hidden>No visits logged yet. Tap + to add your first customer entry.</p>
+    </section>
+
+    <!-- EXPENSES -->
+    <section class="view" id="view-expenses" hidden>
+      <div class="view-header">
+        <input id="expenseSearch" class="search-input" type="search" placeholder="Search by category or note" />
+      </div>
+      <ul id="expenseList" class="entry-list"></ul>
+      <p id="expenseEmpty" class="empty-hint" hidden>No expenses logged yet. Tap + to add your first expense.</p>
+    </section>
+
+    <!-- BACKUP -->
+    <section class="view" id="view-backup" hidden>
+      <h2 class="section-title">Your data</h2>
+      <p class="backup-note">
+        Everything is stored privately on this device, in this browser — free, with no account
+        and no server. It will stay here unless you clear browsing data for this site.
+        Export a backup regularly, or to move your records to another device.
+      </p>
+
+      <div class="backup-group">
+        <h3 class="backup-group-title">Export</h3>
+        <button class="btn btn-secondary" data-export="customers">Export customer visits (CSV)</button>
+        <button class="btn btn-secondary" data-export="expenses">Export expenses (CSV)</button>
+      </div>
+
+      <div class="backup-group">
+        <h3 class="backup-group-title">Import</h3>
+        <label class="btn btn-secondary file-btn">
+          Import customer visits (CSV)
+          <input type="file" id="importCustomers" accept=".csv" hidden />
+        </label>
+        <label class="btn btn-secondary file-btn">
+          Import expenses (CSV)
+          <input type="file" id="importExpenses" accept=".csv" hidden />
+        </label>
+      </div>
+
+      <div class="backup-group">
+        <h3 class="backup-group-title">Danger zone</h3>
+        <button class="btn btn-danger" id="clearAllBtn">Erase all data on this device</button>
+      </div>
+    </section>
+
+  </main>
+
+  <button id="fab" class="fab" hidden aria-label="Add entry">+</button>
+
+  <nav class="bottomnav">
+    <button class="nav-btn is-active" data-view="dashboard">
+      <svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9zm0 7h6v-5H4v5zm10 0h6V11h-6v9zm0-16v5h6V4h-6z"/></svg>
+      <span>Overview</span>
+    </button>
+    <button class="nav-btn" data-view="customers">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 8 1.34 8 4v2H4v-2c0-2.66 5.3-4 8-4zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+      <span>Customers</span>
+    </button>
+    <button class="nav-btn" data-view="expenses">
+      <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+      <span>Expenses</span>
+    </button>
+    <button class="nav-btn" data-view="backup">
+      <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+      <span>Backup</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ENTRY SHEET (shared modal for add/edit) -->
+<div id="sheetOverlay" class="sheet-overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <h2 id="sheetTitle" class="sheet-title">Add visit</h2>
+    <form id="sheetForm" class="sheet-form"></form>
+    <div class="sheet-actions">
+      <button type="button" id="sheetDelete" class="btn btn-danger" hidden>Delete</button>
+      <button type="submit" form="sheetForm" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
