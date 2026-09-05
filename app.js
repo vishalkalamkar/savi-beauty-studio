@@ -5,6 +5,7 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 let currentMonth = new Date();
 let currentView = "dashboard";
+let analyticsRange = 6; // months; 0 = all time
 let editingContext = null; // { store, id }
 
 const CUSTOMER_FIELDS = [
@@ -68,6 +69,7 @@ function setView(view) {
   if (view === "dashboard") renderDashboard();
   if (view === "customers") renderCustomerList();
   if (view === "expenses") renderExpenseList();
+  if (view === "analytics") renderAnalytics();
 }
 
 $$(".nav-btn").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.view)));
@@ -385,12 +387,177 @@ function importCSVFile(e, store) {
 }
 
 $("#clearAllBtn").addEventListener("click", async () => {
-  if (!confirm("This erases every customer visit and expense stored on this device. Continue?")) return;
+  if (!confirm("This erases every customer visit and expense stored in your account, on every device. Continue?")) return;
   if (!confirm("Are you absolutely sure? This cannot be undone.")) return;
   await DB.clear("customers");
   await DB.clear("expenses");
   refreshAll();
 });
+
+/* ---------------- analytics ---------------- */
+
+$$(".range-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    analyticsRange = Number(btn.dataset.range);
+    $$(".range-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+    renderAnalytics();
+  });
+});
+
+function roundedTopBarPath(x, top, width, height, radius) {
+  if (height <= 0) return "";
+  const r = Math.max(0, Math.min(radius, width / 2, height));
+  const bottom = top + height;
+  return `M${x},${bottom} L${x},${top + r} Q${x},${top} ${x + r},${top} ` +
+         `L${x + width - r},${top} Q${x + width},${top} ${x + width},${top + r} ` +
+         `L${x + width},${bottom} Z`;
+}
+
+function buildTrendChart(months) {
+  const groupW = 56;
+  const barW = 16;
+  const gap = 3;
+  const plotH = 130;
+  const labelH = 22;
+  const width = Math.max(months.length * groupW, groupW);
+  const height = plotH + labelH;
+  const maxVal = Math.max(1, ...months.map((m) => Math.max(m.revenue, m.expense)));
+
+  let bars = "";
+  months.forEach((m, i) => {
+    const cx = i * groupW + groupW / 2;
+    const revH = (m.revenue / maxVal) * (plotH - 6);
+    const expH = (m.expense / maxVal) * (plotH - 6);
+    const revX = cx - barW - gap / 2;
+    const expX = cx + gap / 2;
+    bars += `<path d="${roundedTopBarPath(revX, plotH - revH, barW, revH, 4)}" fill="var(--gold)"><title>${m.label}: ${money(m.revenue)} revenue</title></path>`;
+    bars += `<path d="${roundedTopBarPath(expX, plotH - expH, barW, expH, 4)}" fill="var(--expense)"><title>${m.label}: ${money(m.expense)} expenses</title></path>`;
+    bars += `<text class="bar-label" x="${cx}" y="${plotH + 15}" text-anchor="middle">${m.shortLabel}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">` +
+         `<line class="baseline" x1="0" y1="${plotH}" x2="${width}" y2="${plotH}" />` +
+         bars +
+         `</svg>`;
+}
+
+function buildRankRows(items, maxItems) {
+  if (!items.length) {
+    return `<p class="empty-hint">Nothing logged in this range yet.</p>`;
+  }
+  const sorted = [...items].sort((a, b) => b.value - a.value);
+  let shown = sorted;
+  let otherTotal = 0;
+  if (maxItems && sorted.length > maxItems) {
+    shown = sorted.slice(0, maxItems - 1);
+    otherTotal = sorted.slice(maxItems - 1).reduce((s, r) => s + r.value, 0);
+  }
+  const maxVal = Math.max(1, shown[0] ? shown[0].value : 0, otherTotal);
+  let html = shown.map((r) => `
+    <div class="rank-row">
+      <div class="rank-row-top">
+        <span class="rank-row-label">${r.label}</span>
+        <span class="rank-row-value">${money(r.value)}</span>
+      </div>
+      <div class="rank-track"><div class="rank-fill" style="width:${Math.max(3, (r.value / maxVal) * 100)}%"></div></div>
+    </div>`).join("");
+  if (otherTotal > 0) {
+    html += `
+    <div class="rank-row">
+      <div class="rank-row-top">
+        <span class="rank-row-label">Other</span>
+        <span class="rank-row-value">${money(otherTotal)}</span>
+      </div>
+      <div class="rank-track"><div class="rank-fill" style="width:${Math.max(3, (otherTotal / maxVal) * 100)}%"></div></div>
+    </div>`;
+  }
+  return html;
+}
+
+async function renderAnalytics() {
+  const [customers, expenses] = await Promise.all([DB.getAll("customers"), DB.getAll("expenses")]);
+
+  // Work out which months are in range, oldest first.
+  const now = new Date();
+  let monthCount = analyticsRange || 60; // "All" caps at 5 years of buckets, plenty for this app
+  if (analyticsRange === 0) {
+    const allDates = [...customers, ...expenses].map((r) => r.date).filter(Boolean).sort();
+    if (allDates.length) {
+      const earliest = new Date(allDates[0] + "T00:00:00");
+      monthCount = (now.getFullYear() - earliest.getFullYear()) * 12 + (now.getMonth() - earliest.getMonth()) + 1;
+    } else {
+      monthCount = 1;
+    }
+  }
+
+  const months = [];
+  for (let i = monthCount - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = monthKey(d);
+    months.push({
+      key,
+      label: monthLabel(d),
+      shortLabel: d.toLocaleDateString("en-IN", { month: "short" }),
+      revenue: 0,
+      expense: 0
+    });
+  }
+  const monthIndex = Object.fromEntries(months.map((m, i) => [m.key, i]));
+  const inRange = (date) => date && monthIndex[date.slice(0, 7)] !== undefined;
+
+  const rangeCustomers = customers.filter((c) => inRange(c.date));
+  const rangeExpenses = expenses.filter((e) => inRange(e.date));
+
+  rangeCustomers.forEach((c) => { months[monthIndex[c.date.slice(0, 7)]].revenue += Number(c.amount) || 0; });
+  rangeExpenses.forEach((e) => { months[monthIndex[e.date.slice(0, 7)]].expense += Number(e.amount) || 0; });
+
+  const totalRevenue = rangeCustomers.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const totalExpenses = rangeExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const totalProfit = totalRevenue - totalExpenses;
+  const totalVisits = rangeCustomers.length;
+  const avgTicket = totalVisits ? totalRevenue / totalVisits : 0;
+
+  $("#anRevenue").textContent = money(totalRevenue);
+  $("#anExpenses").textContent = money(totalExpenses);
+  $("#anProfit").textContent = money(totalProfit);
+  $("#anVisits").textContent = totalVisits.toLocaleString("en-IN");
+  $("#anAvgTicket").textContent = money(avgTicket);
+
+  const plCard = $("#anPLCard");
+  plCard.classList.remove("stat-card--profit", "stat-card--loss");
+  plCard.classList.add(totalProfit >= 0 ? "stat-card--profit" : "stat-card--loss");
+
+  $("#trendChart").innerHTML = buildTrendChart(months);
+
+  const byCategory = {};
+  rangeExpenses.forEach((e) => {
+    const key = e.category || "Other";
+    byCategory[key] = (byCategory[key] || 0) + (Number(e.amount) || 0);
+  });
+  $("#categoryBreakdown").innerHTML = buildRankRows(
+    Object.entries(byCategory).map(([label, value]) => ({ label, value })), 6
+  );
+
+  const byService = {};
+  rangeCustomers.forEach((c) => {
+    const key = (c.service || "").trim() || "Unspecified";
+    byService[key] = (byService[key] || 0) + (Number(c.amount) || 0);
+  });
+  $("#serviceBreakdown").innerHTML = buildRankRows(
+    Object.entries(byService).map(([label, value]) => ({ label, value })), 5
+  );
+
+  const byPayment = {};
+  rangeCustomers.forEach((c) => {
+    const key = c.paymentMode || "Other";
+    byPayment[key] = (byPayment[key] || 0) + (Number(c.amount) || 0);
+  });
+  $("#paymentBreakdown").innerHTML = buildRankRows(
+    Object.entries(byPayment).map(([label, value]) => ({ label, value }))
+  );
+
+  $("#analyticsEmpty").hidden = !(rangeCustomers.length === 0 && rangeExpenses.length === 0);
+}
 
 /* ---------------- install prompt ---------------- */
 
