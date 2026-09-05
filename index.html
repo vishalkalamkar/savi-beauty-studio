@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Savi Beauty Studio</title>
 <meta name="description" content="Track customer visits, expenses, and monthly profit & loss for Savi Beauty Studio." />
-<meta name="theme-color" content="#1C1420" />
+<meta name="theme-color" content="#FBF1E7" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icons/icon-192.png" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -19,7 +19,7 @@
 <!-- LOGIN -->
 <div id="authScreen" class="auth-screen">
   <div class="auth-card">
-    <span class="brand-mark brand-mark--lg">S</span>
+    <img src="icons/icon-512.png" alt="Savi Beauty Studio" class="brand-mark brand-mark--lg" />
     <h1 class="auth-title">Savi Beauty Studio</h1>
     <p class="auth-sub">Sign in to sync your parlour data across devices.</p>
 
@@ -46,7 +46,7 @@
 
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark">S</span>
+      <img src="icons/icon-192.png" alt="Savi Beauty Studio" class="brand-mark" />
       <div class="brand-text">
         <span class="brand-name">Savi</span>
         <span class="brand-sub">Beauty Studio</span>
@@ -54,7 +54,7 @@
     </div>
     <div class="topbar-actions">
       <button id="installBtn" class="install-btn" hidden>Install app</button>
-      <button id="logoutBtn" class="logout-btn" title="Sign out">⏻</button>
+      <button id="logoutBtn" class="logout-btn" title="Sign out"><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg></button>
     </div>
   </header>
 
@@ -106,13 +106,66 @@
       <p id="expenseEmpty" class="empty-hint" hidden>No expenses logged yet. Tap + to add your first expense.</p>
     </section>
 
+    <!-- ANALYTICS -->
+    <section class="view" id="view-analytics" hidden>
+      <div class="range-toggle" id="rangeToggle">
+        <button class="range-btn" data-range="3">3M</button>
+        <button class="range-btn is-active" data-range="6">6M</button>
+        <button class="range-btn" data-range="12">12M</button>
+        <button class="range-btn" data-range="0">All</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-label">Revenue</span>
+          <span id="anRevenue" class="stat-value">Rs. 0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Expenses</span>
+          <span id="anExpenses" class="stat-value">Rs. 0</span>
+        </div>
+        <div class="stat-card stat-card--wide" id="anPLCard">
+          <span class="stat-label">Net profit</span>
+          <span id="anProfit" class="stat-value stat-value--big">Rs. 0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Visits</span>
+          <span id="anVisits" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Avg. ticket</span>
+          <span id="anAvgTicket" class="stat-value">Rs. 0</span>
+        </div>
+      </div>
+
+      <h2 class="section-title">Revenue vs expenses</h2>
+      <div class="chart-card">
+        <div class="chart-legend">
+          <span class="legend-item"><i class="legend-dot legend-dot--revenue"></i>Revenue</span>
+          <span class="legend-item"><i class="legend-dot legend-dot--expense"></i>Expenses</span>
+        </div>
+        <div id="trendChart" class="trend-chart"></div>
+      </div>
+
+      <h2 class="section-title">Expenses by category</h2>
+      <div class="chart-card" id="categoryBreakdown"></div>
+
+      <h2 class="section-title">Top services</h2>
+      <div class="chart-card" id="serviceBreakdown"></div>
+
+      <h2 class="section-title">Payment mode</h2>
+      <div class="chart-card" id="paymentBreakdown"></div>
+
+      <p id="analyticsEmpty" class="empty-hint" hidden>No data in this range yet. Log a few visits or expenses to see your analytics here.</p>
+    </section>
+
     <!-- BACKUP -->
     <section class="view" id="view-backup" hidden>
       <h2 class="section-title">Your data</h2>
       <p class="backup-note">
-        Everything is stored privately on this device, in this browser — free, with no account
-        and no server. It will stay here unless you clear browsing data for this site.
-        Export a backup regularly, or to move your records to another device.
+        Your data is stored securely in the cloud and synced to your signed-in account, so it is
+        available on every device you sign in on. The app also works offline and syncs
+        automatically once you are back online. Export a backup regularly for your own records.
       </p>
 
       <div class="backup-group">
@@ -135,7 +188,7 @@
 
       <div class="backup-group">
         <h3 class="backup-group-title">Danger zone</h3>
-        <button class="btn btn-danger" id="clearAllBtn">Erase all data on this device</button>
+        <button class="btn btn-danger" id="clearAllBtn">Erase all my data</button>
       </div>
     </section>
 
@@ -155,6 +208,10 @@
     <button class="nav-btn" data-view="expenses">
       <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
       <span>Expenses</span>
+    </button>
+    <button class="nav-btn" data-view="analytics">
+      <svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg>
+      <span>Analytics</span>
     </button>
     <button class="nav-btn" data-view="backup">
       <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>

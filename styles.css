@@ -1,15 +1,16 @@
 :root {
-  --bg: #1C1420;
-  --surface: #241A26;
-  --surface-2: #2E2130;
-  --border: #3B2C3C;
-  --gold: #C9A66B;
-  --gold-dim: #8A7350;
-  --rose: #D88C9A;
-  --ivory: #F5EDE6;
-  --muted: #A99AA0;
-  --success: #7FB88F;
-  --danger: #D97676;
+  --bg: #FBF1E7;
+  --surface: #FFFFFF;
+  --surface-2: #F8ECDF;
+  --border: #E9D6C1;
+  --gold: #B8893C;
+  --gold-dim: #D9B876;
+  --rose: #E7A3AE;
+  --expense: #8E3B3B;
+  --ivory: #45232E;
+  --muted: #8C7568;
+  --success: #5E9468;
+  --danger: #C1544B;
   --radius-lg: 20px;
   --radius-md: 14px;
   --radius-sm: 10px;
@@ -22,15 +23,17 @@
 html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background: var(--bg);
   color: var(--ivory);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
 }
 
 body {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   justify-content: center;
 }
@@ -38,12 +41,13 @@ body {
 .app {
   width: 100%;
   max-width: 480px;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
   background: var(--bg);
+  overflow: hidden;
 }
 
 .app[hidden] {
@@ -65,15 +69,9 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1.5px solid var(--gold);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-serif);
-  font-weight: 600;
-  font-size: 18px;
-  color: var(--ivory);
+  object-fit: cover;
   flex-shrink: 0;
+  background: var(--surface);
 }
 
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
@@ -97,8 +95,8 @@ body {
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--bg);
-  background: var(--gold);
+  color: var(--ivory);
+  background: var(--gold-dim);
   border: none;
   border-radius: 100px;
   padding: 8px 14px;
@@ -114,6 +112,16 @@ body {
   color: var(--muted);
   font-size: 15px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.logout-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--muted);
 }
 
 /* ---------- Auth screen ---------- */
@@ -142,10 +150,10 @@ body {
 }
 
 .brand-mark--lg {
-  width: 56px;
-  height: 56px;
-  font-size: 26px;
+  width: 84px;
+  height: 84px;
   margin-bottom: 6px;
+  box-shadow: 0 4px 16px rgba(184, 137, 60, 0.25);
 }
 
 .auth-title {
@@ -186,8 +194,12 @@ body {
 /* ---------- Main / views ---------- */
 main#views {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 20px 20px 100px;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 20px 20px 130px;
 }
 
 .view { animation: fadeIn 0.18s ease; }
@@ -343,22 +355,19 @@ main#views {
 
 /* ---------- FAB ---------- */
 .fab {
-  position: fixed;
+  position: absolute;
   bottom: 84px;
-  right: calc(50% - 240px + 20px);
+  right: 20px;
   width: 54px;
   height: 54px;
   border-radius: 50%;
   background: var(--gold);
-  color: var(--bg);
+  color: var(--surface);
   font-size: 26px;
   border: none;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  box-shadow: 0 6px 18px rgba(184, 137, 60, 0.35);
   cursor: pointer;
   z-index: 20;
-}
-@media (max-width: 480px) {
-  .fab { right: 20px; }
 }
 
 /* ---------- Bottom nav ---------- */
@@ -407,7 +416,7 @@ main#views {
   margin-bottom: 10px;
 }
 
-.btn-primary { background: var(--gold); color: var(--bg); }
+.btn-primary { background: var(--gold); color: var(--surface); }
 .btn-secondary { background: var(--surface); color: var(--ivory); border-color: var(--border); }
 .btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
 .file-btn { position: relative; overflow: hidden; }
@@ -453,6 +462,7 @@ main#views {
   padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
   max-height: 88vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   animation: slideUp 0.22s ease;
 }
 
@@ -509,3 +519,107 @@ main#views {
 
 /* Scrollbar tidy */
 main#views::-webkit-scrollbar, .sheet::-webkit-scrollbar { width: 0; }
+
+/* ---------- Analytics ---------- */
+.range-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.range-btn {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 0;
+  border-radius: 100px;
+  cursor: pointer;
+}
+
+.range-btn.is-active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--surface);
+}
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 16px 8px;
+  margin-bottom: 8px;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-dot--revenue { background: var(--gold); }
+.legend-dot--expense { background: var(--expense); }
+
+.trend-chart svg { width: 100%; height: 152px; display: block; }
+.trend-chart .bar-label { font-size: 9px; fill: var(--muted); font-family: var(--font-sans); }
+.trend-chart .baseline { stroke: var(--border); stroke-width: 1; }
+
+/* Ranked bar rows (expense categories, top services, payment mode) */
+.rank-row { margin-bottom: 14px; }
+.rank-row:last-child { margin-bottom: 4px; }
+
+.rank-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.rank-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ivory);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rank-row-value {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.rank-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.rank-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--gold);
+}
