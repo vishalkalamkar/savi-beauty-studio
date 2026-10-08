@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Savi Beauty Studio</title>
-<meta name="description" content="Track customer visits, expenses, and monthly profit & loss for Savi Beauty Studio." />
+<meta name="description" content="Track customer visits, expenses, staff attendance, salaries, and monthly profit & loss for Savi Beauty Studio." />
 <meta name="theme-color" content="#FBF1E7" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icons/icon-192.png" />
@@ -63,17 +63,17 @@
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
       <div class="month-switch">
-        <button id="prevMonth" class="month-arrow" aria-label="Previous month">‹</button>
+        <button class="month-arrow" data-month-step="-1" aria-label="Previous month">‹</button>
         <span id="monthLabel" class="month-label"></span>
-        <button id="nextMonth" class="month-arrow" aria-label="Next month">›</button>
+        <button class="month-arrow" data-month-step="1" aria-label="Next month">›</button>
       </div>
 
       <div class="stat-grid">
-        <div class="stat-card">
+        <div class="stat-card stat-card--revenue">
           <span class="stat-label">Revenue</span>
           <span id="statRevenue" class="stat-value">Rs. 0</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card--expense">
           <span class="stat-label">Expenses</span>
           <span id="statExpenses" class="stat-value">Rs. 0</span>
         </div>
@@ -90,20 +90,69 @@
 
     <!-- CUSTOMERS -->
     <section class="view" id="view-customers" hidden>
+      <div class="range-toggle" id="customerModeToggle">
+        <button class="range-btn is-active" data-customer-mode="visits">Visits</button>
+        <button class="range-btn" data-customer-mode="customers">Customers</button>
+      </div>
+      <div class="month-switch" id="customerMonthSwitch">
+        <button class="month-arrow" data-month-step="-1" aria-label="Previous month">‹</button>
+        <span id="customerMonthLabel" class="month-label"></span>
+        <button class="month-arrow" data-month-step="1" aria-label="Next month">›</button>
+      </div>
       <div class="view-header">
         <input id="customerSearch" class="search-input" type="search" placeholder="Search by name or service" />
       </div>
-      <ul id="customerList" class="entry-list"></ul>
-      <p id="customerEmpty" class="empty-hint" hidden>No visits logged yet. Tap + to add your first customer entry.</p>
+      <p id="customerSummary" class="list-summary"></p>
+      <ul id="customerList" class="group-list"></ul>
+      <p id="customerEmpty" class="empty-hint" hidden></p>
     </section>
 
     <!-- EXPENSES -->
     <section class="view" id="view-expenses" hidden>
+      <div class="month-switch">
+        <button class="month-arrow" data-month-step="-1" aria-label="Previous month">‹</button>
+        <span id="expenseMonthLabel" class="month-label"></span>
+        <button class="month-arrow" data-month-step="1" aria-label="Next month">›</button>
+      </div>
       <div class="view-header">
         <input id="expenseSearch" class="search-input" type="search" placeholder="Search by category or note" />
       </div>
-      <ul id="expenseList" class="entry-list"></ul>
-      <p id="expenseEmpty" class="empty-hint" hidden>No expenses logged yet. Tap + to add your first expense.</p>
+      <p id="expenseSummary" class="list-summary"></p>
+      <ul id="expenseList" class="group-list"></ul>
+      <p id="expenseEmpty" class="empty-hint" hidden></p>
+    </section>
+
+    <!-- STAFF (attendance + salary) -->
+    <section class="view" id="view-staff" hidden>
+      <div class="month-switch">
+        <button id="prevDay" class="month-arrow" aria-label="Previous day">‹</button>
+        <label class="day-label">
+          <span id="dayLabel"></span>
+          <input id="dayPicker" type="date" class="day-picker" aria-label="Pick a date" />
+        </label>
+        <button id="nextDay" class="month-arrow" aria-label="Next day">›</button>
+      </div>
+
+      <h2 class="section-title section-title--first">Attendance</h2>
+      <div class="att-legend">
+        <span><b>P</b> Present</span><span><b>½</b> Half day</span><span><b>A</b> Absent</span><span><b>L</b> Paid leave</span>
+      </div>
+      <ul id="attendanceList" class="entry-list"></ul>
+      <p id="staffEmpty" class="empty-hint" hidden>No staff added yet. Tap + to add your first staff member.</p>
+
+      <h2 class="section-title" id="salaryTitle">Salary</h2>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-label">Total salary</span>
+          <span id="salaryTotal" class="stat-value">Rs. 0</span>
+        </div>
+        <div class="stat-card stat-card--expense">
+          <span class="stat-label">Still to pay</span>
+          <span id="salaryDue" class="stat-value">Rs. 0</span>
+        </div>
+      </div>
+      <ul id="salaryList" class="entry-list salary-list"></ul>
+      <p class="salary-note">Monthly staff: absent days are deducted, half days count as half, paid leave and unmarked days are paid. Daily staff: paid for present, paid leave, and half days (at half rate).</p>
     </section>
 
     <!-- ANALYTICS -->
@@ -116,11 +165,11 @@
       </div>
 
       <div class="stat-grid">
-        <div class="stat-card">
+        <div class="stat-card stat-card--revenue">
           <span class="stat-label">Revenue</span>
           <span id="anRevenue" class="stat-value">Rs. 0</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card--expense">
           <span class="stat-label">Expenses</span>
           <span id="anExpenses" class="stat-value">Rs. 0</span>
         </div>
@@ -172,6 +221,8 @@
         <h3 class="backup-group-title">Export</h3>
         <button class="btn btn-secondary" data-export="customers">Export customer visits (CSV)</button>
         <button class="btn btn-secondary" data-export="expenses">Export expenses (CSV)</button>
+        <button class="btn btn-secondary" data-export="staff">Export staff (CSV)</button>
+        <button class="btn btn-secondary" data-export="attendance">Export attendance (CSV)</button>
       </div>
 
       <div class="backup-group">
@@ -209,6 +260,10 @@
       <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
       <span>Expenses</span>
     </button>
+    <button class="nav-btn" data-view="staff">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      <span>Staff</span>
+    </button>
     <button class="nav-btn" data-view="analytics">
       <svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg>
       <span>Analytics</span>
@@ -218,6 +273,30 @@
       <span>Backup</span>
     </button>
   </nav>
+</div>
+
+<!-- CUSTOMER HISTORY SHEET -->
+<div id="historyOverlay" class="sheet-overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="historyName">
+    <div class="sheet-handle"></div>
+    <h2 id="historyName" class="sheet-title"></h2>
+    <p id="historyPhone" class="history-phone"></p>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <span class="stat-label">Visits</span>
+        <span id="historyVisits" class="stat-value">0</span>
+      </div>
+      <div class="stat-card stat-card--revenue">
+        <span class="stat-label">Total spent</span>
+        <span id="historyTotal" class="stat-value">Rs. 0</span>
+      </div>
+    </div>
+    <h3 class="section-title">Visit history</h3>
+    <ul id="historyList" class="entry-list"></ul>
+    <div class="sheet-actions">
+      <button type="button" id="historyAdd" class="btn btn-primary">Add visit for this customer</button>
+    </div>
+  </div>
 </div>
 
 <!-- ENTRY SHEET (shared modal for add/edit) -->

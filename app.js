@@ -1,4 +1,4 @@
-/* app.js — views, forms, and rendering. All data read/written via db.js (IndexedDB). */
+/* app.js — views, forms, and rendering. All data read/written via db.js (Firestore). */
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -6,7 +6,9 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 let currentMonth = new Date();
 let currentView = "dashboard";
 let analyticsRange = 6; // months; 0 = all time
+let customerMode = "visits"; // Customers tab: "visits" (by day) or "customers" (one row per person)
 let editingContext = null; // { store, id }
+let staffDate = todayISO(); // day being marked on the Staff tab; its month drives the salary section
 
 const CUSTOMER_FIELDS = [
   { key: "date", label: "Date", type: "date", required: true },
@@ -26,10 +28,28 @@ const EXPENSE_FIELDS = [
   { key: "amount", label: "Amount (Rs.)", type: "number", required: true, step: "0.01", min: "0" }
 ];
 
+const STAFF_FIELDS = [
+  { key: "name", label: "Staff name", type: "text", required: true, placeholder: "e.g. Priya" },
+  { key: "phone", label: "Phone number", type: "tel", placeholder: "e.g. 9876543210" },
+  { key: "salaryType", label: "Salary type", type: "select", options: ["Monthly", "Daily"] },
+  { key: "salary", label: "Salary (Rs.) — per month, or per day for daily wage", type: "number", required: true, step: "1", min: "0" },
+  { key: "joinDate", label: "Joining date", type: "date" },
+  { key: "status", label: "Status", type: "select", options: ["Active", "Left"] }
+];
+
 const STORE_CONFIG = {
   customers: { fields: CUSTOMER_FIELDS, singular: "visit", titleField: "name", subField: "service" },
-  expenses: { fields: EXPENSE_FIELDS, singular: "expense", titleField: "category", subField: "description" }
+  expenses: { fields: EXPENSE_FIELDS, singular: "expense", titleField: "category", subField: "description" },
+  staff: { fields: STAFF_FIELDS, singular: "staff member", titleField: "name", subField: "salaryType" }
 };
+
+// Attendance docs use the id `${staffId}_${date}` so each person has at most one mark per day.
+const ATTENDANCE_STATUSES = [
+  { key: "P", label: "P", name: "Present" },
+  { key: "H", label: "½", name: "Half day" },
+  { key: "A", label: "A", name: "Absent" },
+  { key: "L", label: "L", name: "Paid leave" }
+];
 
 /* ---------------- helpers ---------------- */
 
@@ -53,9 +73,19 @@ function displayDate(iso) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function todayISO() {
-  const d = new Date();
+function toISO(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function todayISO() {
+  return toISO(new Date());
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
 }
 
 /* ---------------- view switching ---------------- */
@@ -65,22 +95,22 @@ function setView(view) {
   $$(".view").forEach((v) => (v.hidden = true));
   $(`#view-${view}`).hidden = false;
   $$(".nav-btn").forEach((b) => b.classList.toggle("is-active", b.dataset.view === view));
-  $("#fab").hidden = !(view === "customers" || view === "expenses");
+  $("#fab").hidden = !(view === "customers" || view === "expenses" || view === "staff");
   if (view === "dashboard") renderDashboard();
   if (view === "customers") renderCustomerList();
   if (view === "expenses") renderExpenseList();
+  if (view === "staff") renderStaff();
   if (view === "analytics") renderAnalytics();
 }
 
 $$(".nav-btn").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.view)));
 
-$("#prevMonth").addEventListener("click", () => {
-  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
-  renderDashboard();
-});
-$("#nextMonth").addEventListener("click", () => {
-  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
-  renderDashboard();
+// Overview, Customers and Expenses share one selected month.
+$$("[data-month-step]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + Number(btn.dataset.monthStep), 1);
+    refreshAll();
+  });
 });
 
 /* ---------------- dashboard ---------------- */
@@ -118,7 +148,8 @@ async function renderDashboard() {
 
 /* ---------------- list rendering ---------------- */
 
-function buildEntryItem(record, storeName) {
+// showDate is off inside day groups, where the date is already in the group header.
+function buildEntryItem(record, storeName, { showDate = true } = {}) {
   const cfg = STORE_CONFIG[storeName];
   const li = document.createElement("li");
   li.className = "entry-item";
@@ -132,8 +163,10 @@ function buildEntryItem(record, storeName) {
 
   const sub = document.createElement("span");
   sub.className = "entry-sub";
-  const subText = record[cfg.subField] ? `${record[cfg.subField]} · ${displayDate(record.date)}` : displayDate(record.date);
-  sub.textContent = subText;
+  const parts = [record[cfg.subField]];
+  if (showDate) parts.push(displayDate(record.date));
+  else if (storeName === "customers") parts.push(record.paymentMode);
+  sub.textContent = parts.filter(Boolean).join(" · ");
 
   main.append(title, sub);
 
@@ -146,46 +179,194 @@ function buildEntryItem(record, storeName) {
   return li;
 }
 
+const byNewest = (a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0);
+const sumAmount = (records) => records.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+const plural = (n, word, many = word + "s") => `${n} ${n === 1 ? word : many}`;
+
+function dayHeading(iso) {
+  if (!iso) return "No date";
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (iso === todayISO()) return "Today";
+  if (iso === toISO(yesterday)) return "Yesterday";
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d)) return iso;
+  const opts = { weekday: "short", day: "numeric", month: "short" };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString("en-IN", opts);
+}
+
+/* Renders records (already sorted newest first) as day groups, each with a
+   sticky header showing the day's count and total. */
+function renderDayGroups(listEl, records, storeName, word) {
+  listEl.innerHTML = "";
+  const groups = new Map();
+  records.forEach((r) => {
+    const key = r.date || "";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  groups.forEach((items, date) => {
+    const group = el("li", "day-group");
+    const header = el("div", "day-header");
+    header.append(
+      el("span", "day-header-title", dayHeading(date)),
+      el("span", "day-header-meta", `${plural(items.length, word)} · ${money(sumAmount(items))}`)
+    );
+    const ul = el("ul", "entry-list");
+    items.forEach((r) => ul.appendChild(buildEntryItem(r, storeName, { showDate: false })));
+    group.append(header, ul);
+    listEl.appendChild(group);
+  });
+}
+
+function showEmpty(emptyEl, text) {
+  emptyEl.hidden = !text;
+  emptyEl.textContent = text || "";
+}
+
+/* One profile per customer name (case-insensitive), across all time. */
+function buildCustomerProfiles(visits) {
+  const profiles = new Map();
+  [...visits].sort((a, b) => -byNewest(a, b)).forEach((v) => {
+    const name = (v.name || "").trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    if (!profiles.has(key)) profiles.set(key, { name, phone: "", visits: [], total: 0, lastDate: "" });
+    const p = profiles.get(key);
+    // Oldest → newest, so the latest spelling, phone and date win.
+    p.name = name;
+    if (v.phone) p.phone = v.phone;
+    if (v.date) p.lastDate = v.date;
+    p.visits.push(v);
+    p.total += Number(v.amount) || 0;
+  });
+  return [...profiles.values()].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+}
+
+function buildProfileItem(p) {
+  const li = el("li", "entry-item");
+  const main = el("div", "entry-main");
+  const last = p.lastDate ? ` · last ${displayDate(p.lastDate)}` : "";
+  main.append(el("span", "entry-title", p.name), el("span", "entry-sub", `${plural(p.visits.length, "visit")}${last}`));
+  li.append(main, el("span", "entry-amount", money(p.total)));
+  li.addEventListener("click", () => openHistory(p));
+  return li;
+}
+
 async function renderCustomerList() {
   const all = await DB.getAll("customers");
   const q = $("#customerSearch").value.trim().toLowerCase();
-  const filtered = all
-    .filter((c) => !q || (c.name || "").toLowerCase().includes(q) || (c.service || "").toLowerCase().includes(q))
-    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
-
   const list = $("#customerList");
-  list.innerHTML = "";
-  filtered.forEach((r) => list.appendChild(buildEntryItem(r, "customers")));
-  $("#customerEmpty").hidden = filtered.length > 0 || all.length > 0;
-  if (all.length > 0 && filtered.length === 0) {
-    $("#customerEmpty").hidden = false;
-    $("#customerEmpty").textContent = "No matching visits found.";
-  } else {
-    $("#customerEmpty").textContent = "No visits logged yet. Tap + to add your first customer entry.";
+  const summary = $("#customerSummary");
+  const empty = $("#customerEmpty");
+  const isCustomersMode = customerMode === "customers";
+
+  $$("[data-customer-mode]").forEach((b) => b.classList.toggle("is-active", b.dataset.customerMode === customerMode));
+  $("#customerMonthSwitch").hidden = isCustomersMode;
+  $("#customerMonthLabel").textContent = monthLabel(currentMonth);
+  $("#customerSearch").placeholder = isCustomersMode ? "Search by name or phone" : "Search by name or service";
+
+  if (all.length === 0) {
+    list.innerHTML = "";
+    summary.textContent = "";
+    showEmpty(empty, "No visits logged yet. Tap + to add your first customer entry.");
+    return;
   }
+
+  if (isCustomersMode) {
+    const profiles = buildCustomerProfiles(all)
+      .filter((p) => !q || p.name.toLowerCase().includes(q) || p.phone.includes(q));
+    list.innerHTML = "";
+    profiles.forEach((p) => list.appendChild(buildProfileItem(p)));
+    summary.textContent = q ? `${plural(profiles.length, "match", "matches")}` : `${plural(profiles.length, "customer")} · most recent first`;
+    showEmpty(empty, profiles.length ? "" : "No matching customers found.");
+    return;
+  }
+
+  // Visits: the selected month, or every month while searching.
+  const key = monthKey(currentMonth);
+  const visits = all
+    .filter((c) => q
+      ? (c.name || "").toLowerCase().includes(q) || (c.service || "").toLowerCase().includes(q)
+      : c.date && c.date.startsWith(key))
+    .sort(byNewest);
+  renderDayGroups(list, visits, "customers", "visit");
+  summary.textContent = q
+    ? `${plural(visits.length, "match", "matches")} across all months · ${money(sumAmount(visits))}`
+    : `${plural(visits.length, "visit")} · ${money(sumAmount(visits))}`;
+  showEmpty(empty, visits.length ? "" : q ? "No matching visits found." : `No visits in ${monthLabel(currentMonth)}.`);
 }
 
 async function renderExpenseList() {
   const all = await DB.getAll("expenses");
   const q = $("#expenseSearch").value.trim().toLowerCase();
-  const filtered = all
-    .filter((e) => !q || (e.category || "").toLowerCase().includes(q) || (e.description || "").toLowerCase().includes(q))
-    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
+  const key = monthKey(currentMonth);
+  $("#expenseMonthLabel").textContent = monthLabel(currentMonth);
 
-  const list = $("#expenseList");
-  list.innerHTML = "";
-  filtered.forEach((r) => list.appendChild(buildEntryItem(r, "expenses")));
-  if (all.length > 0 && filtered.length === 0) {
-    $("#expenseEmpty").hidden = false;
-    $("#expenseEmpty").textContent = "No matching expenses found.";
-  } else {
-    $("#expenseEmpty").hidden = filtered.length > 0;
-    $("#expenseEmpty").textContent = "No expenses logged yet. Tap + to add your first expense.";
-  }
+  const expenses = all
+    .filter((e) => q
+      ? (e.category || "").toLowerCase().includes(q) || (e.description || "").toLowerCase().includes(q)
+      : e.date && e.date.startsWith(key))
+    .sort(byNewest);
+  renderDayGroups($("#expenseList"), expenses, "expenses", "expense");
+  $("#expenseSummary").textContent = !all.length ? "" : q
+    ? `${plural(expenses.length, "match", "matches")} across all months · ${money(sumAmount(expenses))}`
+    : `${plural(expenses.length, "expense")} · ${money(sumAmount(expenses))}`;
+  showEmpty($("#expenseEmpty"), expenses.length ? ""
+    : !all.length ? "No expenses logged yet. Tap + to add your first expense."
+    : q ? "No matching expenses found." : `No expenses in ${monthLabel(currentMonth)}.`);
 }
 
 $("#customerSearch").addEventListener("input", renderCustomerList);
 $("#expenseSearch").addEventListener("input", renderExpenseList);
+
+$$("[data-customer-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    customerMode = btn.dataset.customerMode;
+    renderCustomerList();
+  });
+});
+
+/* ---------------- customer history sheet ---------------- */
+
+const historyOverlay = $("#historyOverlay");
+let historyProfile = null;
+
+function openHistory(profile) {
+  historyProfile = profile;
+  $("#historyName").textContent = profile.name;
+  const phone = $("#historyPhone");
+  phone.innerHTML = "";
+  if (profile.phone) {
+    const link = el("a", "", profile.phone);
+    link.href = `tel:${profile.phone.replace(/[^\d+]/g, "")}`;
+    phone.appendChild(link);
+  } else {
+    phone.textContent = "No phone number saved";
+  }
+  $("#historyVisits").textContent = String(profile.visits.length);
+  $("#historyTotal").textContent = money(profile.total);
+  const list = $("#historyList");
+  list.innerHTML = "";
+  [...profile.visits].sort(byNewest).forEach((v) => list.appendChild(buildEntryItem(v, "customers")));
+  historyOverlay.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeHistory() {
+  historyOverlay.hidden = true;
+  document.body.style.overflow = "";
+}
+
+historyOverlay.addEventListener("click", (e) => {
+  if (e.target === historyOverlay) closeHistory();
+});
+
+$("#historyAdd").addEventListener("click", () => {
+  const { name, phone } = historyProfile;
+  openSheet("customers", null, { name, phone });
+});
 
 /* ---------------- add / edit sheet ---------------- */
 
@@ -194,7 +375,9 @@ const sheetForm = $("#sheetForm");
 const sheetTitle = $("#sheetTitle");
 const sheetDelete = $("#sheetDelete");
 
-function openSheet(storeName, record = null) {
+// prefill: starting values for a new record, e.g. { name, phone } from a customer's history.
+function openSheet(storeName, record = null, prefill = {}) {
+  historyOverlay.hidden = true;
   const cfg = STORE_CONFIG[storeName];
   editingContext = { store: storeName, id: record ? record.id : null };
 
@@ -231,7 +414,9 @@ function openSheet(storeName, record = null) {
     input.name = f.key;
     if (f.required) input.required = true;
 
-    const val = record ? record[f.key] : (f.key === "date" ? todayISO() : "");
+    const val = record ? record[f.key]
+      : prefill[f.key] !== undefined ? prefill[f.key]
+      : (f.key === "date" ? todayISO() : "");
     if (val !== undefined && val !== null) input.value = val;
 
     wrap.appendChild(input);
@@ -241,6 +426,48 @@ function openSheet(storeName, record = null) {
   sheetDelete.hidden = !record;
   overlay.hidden = false;
   document.body.style.overflow = "hidden";
+
+  if (storeName === "customers" && !record) {
+    setupCustomerNameAutocomplete();
+  }
+}
+
+async function setupCustomerNameAutocomplete() {
+  const nameInput = $("#f_name");
+  if (!nameInput) return;
+
+  const customers = await DB.getAll("customers");
+  // Sheet may have moved on (closed, or switched to editing/another store) while this loaded.
+  if (!editingContext || editingContext.store !== "customers" || editingContext.id) return;
+  if ($("#f_name") !== nameInput) return;
+
+  const byName = new Map();
+  customers
+    .filter((c) => c.name && c.name.trim())
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+    .forEach((c) => byName.set(c.name.trim().toLowerCase(), c));
+
+  let datalist = document.getElementById("customerNamesList");
+  if (!datalist) {
+    datalist = document.createElement("datalist");
+    datalist.id = "customerNamesList";
+    document.body.appendChild(datalist);
+  }
+  datalist.innerHTML = "";
+  byName.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.name.trim();
+    datalist.appendChild(opt);
+  });
+  nameInput.setAttribute("list", "customerNamesList");
+
+  nameInput.addEventListener("input", () => {
+    const match = byName.get(nameInput.value.trim().toLowerCase());
+    const phoneInput = $("#f_phone");
+    if (match && phoneInput && !phoneInput.value) {
+      phoneInput.value = match.phone || "";
+    }
+  });
 }
 
 function closeSheet() {
@@ -254,7 +481,7 @@ overlay.addEventListener("click", (e) => {
 });
 
 $("#fab").addEventListener("click", () => {
-  openSheet(currentView === "expenses" ? "expenses" : "customers");
+  openSheet(STORE_CONFIG[currentView] ? currentView : "customers");
 });
 
 sheetForm.addEventListener("submit", async (e) => {
@@ -281,8 +508,16 @@ sheetForm.addEventListener("submit", async (e) => {
 
 sheetDelete.addEventListener("click", async () => {
   if (!editingContext || !editingContext.id) return;
-  if (!confirm("Delete this entry? This cannot be undone.")) return;
-  await DB.delete(editingContext.store, editingContext.id);
+  const { store, id } = editingContext;
+  const message = store === "staff"
+    ? "Delete this staff member and all their attendance? Salary payments already logged in Expenses are kept. Tip: set Status to \"Left\" instead to keep their history."
+    : "Delete this entry? This cannot be undone.";
+  if (!confirm(message)) return;
+  if (store === "staff") {
+    const attendance = await DB.getAll("attendance");
+    await Promise.all(attendance.filter((a) => a.staffId === id).map((a) => DB.delete("attendance", a.id)));
+  }
+  await DB.delete(store, id);
   closeSheet();
   refreshAll();
 });
@@ -291,6 +526,7 @@ function refreshAll() {
   renderDashboard();
   if (currentView === "customers") renderCustomerList();
   if (currentView === "expenses") renderExpenseList();
+  if (currentView === "staff") renderStaff();
 }
 
 /* ---------------- CSV export / import ---------------- */
@@ -350,9 +586,19 @@ function parseCSV(text) {
 $$('[data-export]').forEach((btn) => {
   btn.addEventListener("click", async () => {
     const store = btn.dataset.export;
-    const cfg = STORE_CONFIG[store];
-    const columns = cfg.fields.map((f) => f.key);
-    const rows = await DB.getAll(store);
+    let columns, rows;
+    if (store === "attendance") {
+      const [attendance, staff] = await Promise.all([DB.getAll("attendance"), DB.getAll("staff")]);
+      const nameById = Object.fromEntries(staff.map((s) => [s.id, s.name]));
+      const statusName = Object.fromEntries(ATTENDANCE_STATUSES.map((s) => [s.key, s.name]));
+      columns = ["date", "staffName", "status"];
+      rows = attendance
+        .map((a) => ({ date: a.date || "", staffName: nameById[a.staffId] || "(deleted)", status: statusName[a.status] || a.status }))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.staffName.localeCompare(b.staffName));
+    } else {
+      columns = STORE_CONFIG[store].fields.map((f) => f.key);
+      rows = await DB.getAll(store);
+    }
     const csv = toCSV(rows, columns);
     downloadFile(`${store}-${todayISO()}.csv`, csv);
   });
@@ -387,12 +633,196 @@ function importCSVFile(e, store) {
 }
 
 $("#clearAllBtn").addEventListener("click", async () => {
-  if (!confirm("This erases every customer visit and expense stored in your account, on every device. Continue?")) return;
+  if (!confirm("This erases every customer visit, expense, staff member and attendance record stored in your account, on every device. Continue?")) return;
   if (!confirm("Are you absolutely sure? This cannot be undone.")) return;
   await DB.clear("customers");
   await DB.clear("expenses");
+  await DB.clear("staff");
+  await DB.clear("attendance");
   refreshAll();
 });
+
+/* ---------------- staff: attendance + salary ---------------- */
+
+function shiftStaffDate(days) {
+  const d = new Date(staffDate + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  staffDate = toISO(d);
+  renderStaff();
+}
+
+$("#prevDay").addEventListener("click", () => shiftStaffDate(-1));
+$("#nextDay").addEventListener("click", () => shiftStaffDate(1));
+$("#dayPicker").addEventListener("change", (e) => {
+  if (!e.target.value) return;
+  staffDate = e.target.value;
+  renderStaff();
+});
+
+/* Works out one staff member's pay for a month.
+   Monthly: salary / days-in-month per day; absent days are deducted, half days
+   deduct half a day, paid leave and unmarked days are paid. Days before the
+   joining date aren't paid. Staff marked "Left" are only paid for days actually
+   marked, so the rest of the month after they leave isn't paid as "unmarked".
+   Daily: wage x (present + paid leave + half x half days). */
+function calcSalary(staff, attendance, monthDate) {
+  const key = monthKey(monthDate);
+  const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+  const join = staff.joinDate || "";
+
+  let firstDay = 1;
+  if (join.slice(0, 7) === key) firstDay = Number(join.slice(8, 10)) || 1;
+  else if (join && join.slice(0, 7) > key) firstDay = daysInMonth + 1; // hadn't joined yet
+  const workDays = Math.max(0, daysInMonth - firstDay + 1);
+
+  const counts = { P: 0, H: 0, A: 0, L: 0 };
+  attendance
+    .filter((a) => a.staffId === staff.id && a.date && a.date.startsWith(key) && (!join || a.date >= join))
+    .forEach((a) => { if (counts[a.status] !== undefined) counts[a.status]++; });
+
+  const rate = Number(staff.salary) || 0;
+  let perDay, paidDays;
+  if (staff.salaryType === "Daily") {
+    perDay = rate;
+    paidDays = counts.P + counts.L + 0.5 * counts.H;
+  } else {
+    perDay = rate / daysInMonth;
+    paidDays = staff.status === "Left"
+      ? counts.P + counts.L + 0.5 * counts.H
+      : Math.max(0, workDays - counts.A - 0.5 * counts.H);
+  }
+
+  return { counts, paidDays, workDays, daysInMonth, amount: Math.round(perDay * paidDays) };
+}
+
+function buildAttendanceItem(staff, mark) {
+  const li = el("li", "entry-item att-item");
+  const current = ATTENDANCE_STATUSES.find((s) => s.key === (mark && mark.status));
+
+  const main = el("div", "entry-main");
+  main.append(el("span", "entry-title", staff.name || "Unnamed"), el("span", "entry-sub", current ? current.name : "Not marked"));
+  main.addEventListener("click", () => openSheet("staff", staff));
+
+  const chips = el("div", "att-chips");
+  ATTENDANCE_STATUSES.forEach((st) => {
+    const active = current === st;
+    const chip = el("button", `att-chip att-chip--${st.key}${active ? " is-active" : ""}`, st.label);
+    chip.type = "button";
+    chip.title = st.name;
+    chip.setAttribute("aria-label", `${staff.name}: ${st.name}`);
+    chip.setAttribute("aria-pressed", String(active));
+    chip.addEventListener("click", async () => {
+      chips.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      const docId = `${staff.id}_${staffDate}`;
+      // Tapping the active status again clears the mark.
+      if (active) await DB.delete("attendance", docId);
+      else await DB.put("attendance", { id: docId, staffId: staff.id, date: staffDate, status: st.key });
+      renderStaff();
+    });
+    chips.appendChild(chip);
+  });
+
+  li.append(main, chips);
+  return li;
+}
+
+function buildSalaryItem(staff, salary, paid, monthName, salaryMonth) {
+  const li = el("li", "salary-card");
+
+  const top = el("div", "salary-top");
+  const main = el("div", "entry-main");
+  const rateText = staff.salaryType === "Daily" ? `${money(staff.salary)}/day` : `${money(staff.salary)}/month`;
+  main.append(
+    el("span", "entry-title", staff.name || "Unnamed"),
+    el("span", "entry-sub", staff.status === "Left" ? `${rateText} · Left` : rateText)
+  );
+  main.addEventListener("click", () => openSheet("staff", staff));
+  top.append(main, el("span", "entry-amount", money(salary.amount)));
+
+  const c = salary.counts;
+  const breakdown = el("div", "salary-breakdown");
+  [["Present", c.P], ["Half day", c.H], ["Absent", c.A], ["Leave", c.L]].forEach(([label, n]) => {
+    const cell = el("div", "salary-stat");
+    cell.append(el("span", "salary-stat-num", String(n)), el("span", "salary-stat-label", label));
+    breakdown.appendChild(cell);
+  });
+
+  const daysText = staff.salaryType === "Daily" || staff.status === "Left"
+    ? `${salary.paidDays} paid day(s)`
+    : `${salary.paidDays} of ${salary.daysInMonth} days paid`;
+  const footer = el("div", "salary-footer");
+  footer.appendChild(el("span", "salary-status", paid > 0 ? `${daysText} · Paid ${money(paid)}` : daysText));
+
+  const due = salary.amount - paid;
+  if (due > 0) {
+    const payBtn = el("button", "pay-btn", paid > 0 ? `Pay ${money(due)} more` : `Pay ${money(due)}`);
+    payBtn.type = "button";
+    payBtn.addEventListener("click", async () => {
+      if (!confirm(`Record ${money(due)} salary paid to ${staff.name} for ${monthName}? It will be added to Expenses under "Salaries".`)) return;
+      payBtn.disabled = true;
+      await DB.add("expenses", {
+        date: todayISO(),
+        category: "Salaries",
+        description: `Salary – ${staff.name} (${monthName})`,
+        amount: due,
+        staffId: staff.id,
+        salaryMonth
+      });
+      refreshAll();
+    });
+    footer.appendChild(payBtn);
+  } else if (salary.amount > 0) {
+    footer.appendChild(el("span", "paid-badge", "Paid ✓"));
+  }
+
+  li.append(top, breakdown, footer);
+  return li;
+}
+
+async function renderStaff() {
+  const day = new Date(staffDate + "T00:00:00");
+  $("#dayLabel").textContent = day.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  $("#dayPicker").value = staffDate;
+  const monthStart = new Date(day.getFullYear(), day.getMonth(), 1);
+  const key = monthKey(monthStart);
+  const monthName = monthLabel(monthStart);
+  $("#salaryTitle").textContent = `Salary — ${monthName}`;
+
+  const [staff, attendance, expenses] = await Promise.all([DB.getAll("staff"), DB.getAll("attendance"), DB.getAll("expenses")]);
+  staff.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  // Attendance: active staff who had joined by this day.
+  const marksToday = Object.fromEntries(attendance.filter((a) => a.date === staffDate).map((a) => [a.staffId, a]));
+  const markable = staff.filter((s) => s.status !== "Left" && (!s.joinDate || s.joinDate <= staffDate));
+  const attList = $("#attendanceList");
+  attList.innerHTML = "";
+  markable.forEach((s) => attList.appendChild(buildAttendanceItem(s, marksToday[s.id])));
+  $("#staffEmpty").hidden = markable.length > 0;
+  $("#staffEmpty").textContent = staff.length
+    ? "No active staff on this date."
+    : "No staff added yet. Tap + to add your first staff member.";
+
+  // Salary payments are expenses tagged with staffId + salaryMonth by the Pay button.
+  const paidByStaff = {};
+  expenses
+    .filter((e) => e.staffId && e.salaryMonth === key)
+    .forEach((e) => { paidByStaff[e.staffId] = (paidByStaff[e.staffId] || 0) + (Number(e.amount) || 0); });
+
+  let total = 0, totalDue = 0;
+  const salList = $("#salaryList");
+  salList.innerHTML = "";
+  staff.forEach((s) => {
+    const salary = calcSalary(s, attendance, monthStart);
+    const paid = paidByStaff[s.id] || 0;
+    // Skip people with nothing to show this month (not joined yet, or left with no marks).
+    if (salary.amount === 0 && paid === 0 && (s.status === "Left" || salary.workDays === 0)) return;
+    total += salary.amount;
+    totalDue += Math.max(0, salary.amount - paid);
+    salList.appendChild(buildSalaryItem(s, salary, paid, monthName, key));
+  });
+  $("#salaryTotal").textContent = money(total);
+  $("#salaryDue").textContent = money(totalDue);
+}
 
 /* ---------------- analytics ---------------- */
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = "savi-beauty-studio-v8";
+const CACHE_NAME = "savi-beauty-studio-v10";
 const ASSETS = [
   "./",
   "./index.html",
