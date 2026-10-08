@@ -282,6 +282,8 @@ main#views {
 
 .stat-card--profit .stat-value { color: var(--success); }
 .stat-card--loss .stat-value { color: var(--danger); }
+.stat-card--revenue .stat-value { color: var(--gold); }
+.stat-card--expense .stat-value { color: var(--expense); }
 
 /* ---------- Entry lists ---------- */
 .search-input {
@@ -356,7 +358,7 @@ main#views {
 /* ---------- FAB ---------- */
 .fab {
   position: absolute;
-  bottom: 84px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
   right: 20px;
   width: 54px;
   height: 54px;
@@ -623,3 +625,185 @@ main#views::-webkit-scrollbar, .sheet::-webkit-scrollbar { width: 0; }
   border-radius: 5px;
   background: var(--gold);
 }
+
+/* ---------- Staff: attendance + salary ---------- */
+.day-label {
+  position: relative;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  min-width: 150px;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* Invisible native date input over the label, so tapping the date opens the picker. */
+.day-picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.section-title--first { margin-top: 4px; }
+
+.att-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.att-legend b { color: var(--ivory); }
+
+.att-item { cursor: default; padding: 11px 12px 11px 15px; }
+.att-item .entry-main { cursor: pointer; flex: 1; }
+
+.att-chips { display: flex; gap: 6px; flex-shrink: 0; }
+
+.att-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.att-chip:disabled { opacity: 0.6; }
+.att-chip.is-active { color: var(--surface); }
+.att-chip--P.is-active { background: var(--success); border-color: var(--success); }
+.att-chip--H.is-active { background: var(--gold); border-color: var(--gold); }
+.att-chip--A.is-active { background: var(--danger); border-color: var(--danger); }
+.att-chip--L.is-active { background: var(--rose); border-color: var(--rose); color: var(--ivory); }
+
+.salary-list { margin-top: 10px; }
+
+.salary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.salary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.salary-top .entry-main { cursor: pointer; }
+
+.salary-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.salary-stat {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 7px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.salary-stat-num { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.salary-stat-label { font-size: 10.5px; color: var(--muted); }
+
+.salary-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.salary-status { font-size: 12.5px; color: var(--muted); }
+
+.pay-btn {
+  background: var(--gold);
+  color: var(--surface);
+  border: none;
+  border-radius: 100px;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pay-btn:disabled { opacity: 0.6; }
+
+.paid-badge { font-size: 12.5px; font-weight: 600; color: var(--success); }
+
+.salary-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 14px;
+}
+
+/* ---------- Grouped lists (Customers / Expenses) ---------- */
+.month-switch[hidden] { display: none; }
+
+#customerModeToggle { margin-bottom: 16px; }
+
+.list-summary {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: -4px 0 12px;
+}
+.list-summary:empty { display: none; }
+
+.group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Sticks to the top of the scroll area while its day's entries are on screen. */
+.day-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 2px;
+  background: var(--bg);
+}
+
+.day-header-title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.day-header-meta {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Customer history sheet ---------- */
+.history-phone {
+  margin: -10px 0 16px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.history-phone a { color: var(--gold); font-weight: 600; text-decoration: none; }
+
+#historyOverlay .section-title { margin-top: 20px; }
