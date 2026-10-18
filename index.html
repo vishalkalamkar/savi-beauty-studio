@@ -55,6 +55,7 @@
     </div>
     <div class="topbar-actions">
       <button id="installBtn" class="install-btn" hidden>Install app</button>
+      <button id="backupBtn" class="logout-btn" title="Backup &amp; data" aria-label="Backup and data"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg></button>
       <button id="logoutBtn" class="logout-btn" title="Sign out"><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg></button>
     </div>
   </header>
@@ -63,6 +64,10 @@
 
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
+      <div class="range-toggle">
+        <button class="range-btn is-active" data-overview-view="dashboard">This month</button>
+        <button class="range-btn" data-overview-view="analytics">Trends</button>
+      </div>
       <div class="month-switch">
         <button class="month-arrow" data-month-step="-1" aria-label="Previous month">‹</button>
         <span id="monthLabel" class="month-label"></span>
@@ -179,6 +184,10 @@
 
     <!-- ANALYTICS -->
     <section class="view" id="view-analytics" hidden>
+      <div class="range-toggle">
+        <button class="range-btn" data-overview-view="dashboard">This month</button>
+        <button class="range-btn is-active" data-overview-view="analytics">Trends</button>
+      </div>
       <div class="range-toggle" id="rangeToggle">
         <button class="range-btn" data-range="3">3M</button>
         <button class="range-btn is-active" data-range="6">6M</button>
@@ -297,14 +306,6 @@
     <button class="nav-btn" data-view="staff">
       <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
       <span>Staff</span>
-    </button>
-    <button class="nav-btn" data-view="analytics">
-      <svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg>
-      <span>Analytics</span>
-    </button>
-    <button class="nav-btn" data-view="backup">
-      <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
-      <span>Backup</span>
     </button>
   </nav>
 </div>
