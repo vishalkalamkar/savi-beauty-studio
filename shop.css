@@ -1,19 +1,5 @@
 /* shop.css — Shop tab (shop.js). Builds on the tokens and components in styles.css. */
 
-/* Seven tabs now: let labels shrink rather than push the bar wider than the screen. */
-.nav-btn { min-width: 0; }
-.nav-btn span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 400px) {
-  .bottomnav { padding-left: 2px; padding-right: 2px; }
-  .nav-btn { font-size: 9.5px; }
-}
-
 /* Own class, not .range-btn: app.js binds every .range-btn to the Analytics range. */
 #shopModeToggle { margin-bottom: 16px; }
 

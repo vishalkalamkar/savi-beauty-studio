@@ -5,6 +5,7 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 let currentMonth = new Date();
 let currentView = "dashboard";
+let overviewView = "dashboard"; // Overview tab: "dashboard" (this month) or "analytics" (trends)
 let analyticsRange = 6; // months; 0 = all time
 let customerMode = "visits"; // Customers tab: "visits" (by day) or "customers" (one row per person)
 let editingContext = null; // { store, id }
@@ -90,11 +91,15 @@ function el(tag, className, text) {
 
 /* ---------------- view switching ---------------- */
 
+// Analytics lives under the Overview tab as "Trends"; Backup opens from the top bar.
 function setView(view) {
   currentView = view;
+  if (view === "dashboard" || view === "analytics") overviewView = view;
   $$(".view").forEach((v) => (v.hidden = true));
   $(`#view-${view}`).hidden = false;
-  $$(".nav-btn").forEach((b) => b.classList.toggle("is-active", b.dataset.view === view));
+  const navView = view === "analytics" ? "dashboard" : view;
+  $$(".nav-btn").forEach((b) => b.classList.toggle("is-active", b.dataset.view === navView));
+  $("#backupBtn").classList.toggle("is-active", view === "backup");
   $("#fab").hidden = !(view === "customers" || view === "expenses" || view === "staff");
   if (view === "dashboard") renderDashboard();
   if (view === "customers") renderCustomerList();
@@ -103,7 +108,12 @@ function setView(view) {
   if (view === "analytics") renderAnalytics();
 }
 
-$$(".nav-btn").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.view)));
+// The Overview tab reopens whichever of "This month" / "Trends" was last shown.
+$$(".nav-btn").forEach((btn) => btn.addEventListener("click", () => {
+  setView(btn.dataset.view === "dashboard" ? overviewView : btn.dataset.view);
+}));
+$$("[data-overview-view]").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.overviewView)));
+$("#backupBtn").addEventListener("click", () => setView("backup"));
 
 // Overview, Customers and Expenses share one selected month.
 $$("[data-month-step]").forEach((btn) => {

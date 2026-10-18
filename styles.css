@@ -124,6 +124,9 @@ body {
   fill: var(--muted);
 }
 
+.logout-btn.is-active { border-color: var(--gold); }
+.logout-btn.is-active svg { fill: var(--gold); }
+
 /* ---------- Auth screen ---------- */
 .auth-screen {
   position: fixed;

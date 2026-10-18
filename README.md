@@ -51,7 +51,7 @@ It then opens full-screen like a normal app, and works offline.
 
 ## Files
 
-- `index.html` — app screens (sign in, Overview, Customers, Expenses, Shop, Staff, Analytics, Backup)
+- `index.html` — app screens (sign in, Overview with Trends, Customers, Expenses, Shop, Staff, and Backup from the top bar)
 - `styles.css` — styling
 - `firebase-config.js` — **edit this** with your own Firebase project keys
 - `firestore.rules` — paste into Firebase console → Firestore → Rules
