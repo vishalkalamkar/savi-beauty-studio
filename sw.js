@@ -1,4 +1,4 @@
-const CACHE_NAME = "savi-beauty-studio-v10";
+const CACHE_NAME = "savi-beauty-studio-v11";
 const ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,8 @@ const ASSETS = [
   "./firebase-config.js",
   "./db.js",
   "./app.js",
+  "./shop.js",
+  "./shop.css",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png"

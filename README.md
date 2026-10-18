@@ -51,13 +51,14 @@ It then opens full-screen like a normal app, and works offline.
 
 ## Files
 
-- `index.html` — app screens (sign in, Overview, Customers, Expenses, Staff, Analytics, Backup)
+- `index.html` — app screens (sign in, Overview, Customers, Expenses, Shop, Staff, Analytics, Backup)
 - `styles.css` — styling
 - `firebase-config.js` — **edit this** with your own Firebase project keys
 - `firestore.rules` — paste into Firebase console → Firestore → Rules
 - `FIREBASE_SETUP.md` — step-by-step setup guide, start here
 - `db.js` — Firestore + sign-in read/write helpers
 - `app.js` — app logic (forms, lists, totals, staff attendance & salary, CSV export/import)
+- `shop.js` / `shop.css` — Shop tab: items for sale and for rent, stock, sales, rentals and shop revenue
 - `manifest.json` — app name/icon/colors for installation
 - `sw.js` — service worker, caches the app shell so it loads offline
 - `icons/` — app icons

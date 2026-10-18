@@ -826,10 +826,10 @@ async function renderStaff() {
 
 /* ---------------- analytics ---------------- */
 
-$$(".range-btn").forEach((btn) => {
+$$("[data-range]").forEach((btn) => {
   btn.addEventListener("click", () => {
     analyticsRange = Number(btn.dataset.range);
-    $$(".range-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+    $$("[data-range]").forEach((b) => b.classList.toggle("is-active", b === btn));
     renderAnalytics();
   });
 });
